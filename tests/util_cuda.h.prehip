@@ -34,17 +34,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "util.h"
 
-#include <hip/hip_runtime.h>
-#include <hip/hip_runtime_api.h>
+#include <cuda.h>
+#include <cuda_runtime_api.h>
 
 // utility macros to check return codes and complain/exit on failure
-#define CHECKLAST(MSG) 	do { hipError_t e = hipGetLastError(); if (e != hipSuccess) {fprintf(stderr, "%s:%d: CUDA Error: %s: %s\n", __FILE__, __LINE__, (MSG), hipGetErrorString(e)); exit(1); }} while(0)
-#define CHECKCALL(RET)	do { hipError_t e = (RET); if (e != hipSuccess) { fprintf(stderr, "%s:%d: CUDA Error: %s\n", __FILE__, __LINE__, hipGetErrorString(e)); exit(1); } } while(0)
+#define CHECKLAST(MSG) 	do { cudaError_t e = cudaGetLastError(); if (e != cudaSuccess) {fprintf(stderr, "%s:%d: CUDA Error: %s: %s\n", __FILE__, __LINE__, (MSG), cudaGetErrorString(e)); exit(1); }} while(0)
+#define CHECKCALL(RET)	do { cudaError_t e = (RET); if (e != cudaSuccess) { fprintf(stderr, "%s:%d: CUDA Error: %s\n", __FILE__, __LINE__, cudaGetErrorString(e)); exit(1); } } while(0)
 
 typedef struct cuda_info {
     int devnum, cores, blocks_per_grid, threads_per_block;
     double cycles;
-    struct hipDeviceProp_t dev;
+    struct cudaDeviceProp dev;
 } CUDAInfo;
 
 // If devstr is none, chooses device with most cores.
@@ -54,13 +54,13 @@ static CUDAInfo *cuda_init(const char *devstr)
     int i, ndev, cores, devcores;
     double cycles;
     CHECKNOTZERO(tp = (CUDAInfo *) malloc(sizeof(CUDAInfo)));
-    CHECKCALL( hipGetDeviceCount(&ndev) );
+    CHECKCALL( cudaGetDeviceCount(&ndev) );
     devcores = 0;
     if (devstr == NULL)
 	devstr = getenv("R123EXAMPLE_ENVCONF_CUDA_DEVICE");
     for (i = 0; i < ndev; i++) {
-	struct hipDeviceProp_t cu;
-	CHECKCALL( hipGetDeviceProperties (&cu, i) );
+	struct cudaDeviceProp cu;
+	CHECKCALL( cudaGetDeviceProperties (&cu, i) );
 	// Number of cores is not available from a query, have to hardwire
 	// some knowledge here, from web articles about the various generations
 	// SM or SMX, might also find this info in
@@ -121,7 +121,7 @@ static CUDAInfo *cuda_init(const char *devstr)
     tp->threads_per_block = tp->dev.warpSize * 2;
     printf("Using CUDA device %d, %d cores, %g cycles, will try %d blocks/grid %d threads/block\n",
 	   tp->devnum, tp->cores, tp->cycles, tp->blocks_per_grid, tp->threads_per_block);
-    CHECKCALL(hipSetDevice(tp->devnum));
+    CHECKCALL(cudaSetDevice(tp->devnum));
     dprintf(("cuda_init done\n"));
     return tp;
 }

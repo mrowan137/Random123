@@ -1,4 +1,3 @@
-#include "hip/hip_runtime.h"
 /*
 Copyright 2010-2011, D. E. Shaw Research.
 All rights reserved.
@@ -31,12 +30,14 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 /*
- * CUDA test and timing harness for Random123 RNGs.  Uses macros
+ * OpenCL test and timing harness for Random123 RNGs.  Uses macros
  * and util_expandtpl.h to "templatize" over all the different
  * permutations of RNGs and NxW and R.
  */
 
-#include "util_cuda.h"
+#define R123_USE_AES_NI	0 /* never use this for OpenCL */
+
+#include "util_opencl.h"
 
 #include "Random123/philox.h"
 #include "Random123/threefry.h"
@@ -44,34 +45,36 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "time_misc.h"
 #include "util_print.h"
 
-#define KERNEL __global__
-#define get_global_id(i) (blockDim.x * blockIdx.x + threadIdx.x)
-#include "time_random123.h"
-
 #define TEST_TPL(NAME, N, W, R) \
-void NAME##N##x##W##_##R(NAME##N##x##W##_ctr_t ctr, NAME##N##x##W##_ukey_t ukey, NAME##N##x##W##_ctr_t kactr, unsigned count, CUDAInfo *tp) \
+void NAME##N##x##W##_##R(NAME##N##x##W##_ctr_t ctr, NAME##N##x##W##_ukey_t ukey, NAME##N##x##W##_ctr_t kactr, unsigned count, UCLInfo *tp) \
 { \
     const char *kernelname = PREFIX #NAME #N "x" #W "_" #R; \
-    NAME##N##x##W##_ctr_t *hC, *dC; \
+    NAME##N##x##W##_ctr_t *hC; \
     int n, niterations = numtrials; /* we make niterations + 2 (warmup, overhead) calls to the kernel */ \
+    int narg; \
     double cur_time; \
     size_t i; \
-    const size_t nworkitems = tp->blocks_per_grid * tp->threads_per_block; \
-    const size_t szC = nworkitems*sizeof(hC[0]); \
+    cl_int err; \
+    cl_mem dC; \
+    cl_kernel kern; \
     \
-    /* allocate vector of counters in device memory, initialize to zero */ \
-    CHECKCALL(hipMalloc(&dC, szC)); \
-    CHECKCALL(hipMemset((void *)dC, 0, szC)); \
+    /* create handle to kernel in program */ \
+    dprintf(("%s kernel\n", kernelname)); \
+    CHECKERR(kern = clCreateKernel(tp->prog, kernelname, &err)); \
+    const size_t nworkitems = tp->wgsize * tp->cores; \
+    const size_t szC = nworkitems*sizeof(hC[0]); \
     /* allocate and initialize vector of counters in host memory */ \
-    CHECKNOTZERO(hC = (NAME##N##x##W##_ctr_t *)malloc(szC)); \
+    CHECKNOTZERO(hC = (NAME##N##x##W##_ctr_t *) malloc(szC)); \
     for (i = 0; i < nworkitems; i++) { \
-	size_t xi; \
-	for (xi = 0; xi < N; xi++) { \
+	int xi; \
+	for (xi = 0; xi < N; xi++) \
 	    hC[i].v[xi] = 0; \
-	} \
     } \
-    unsigned kcount = 0; \
+    /* allocate vector of counters in device memory, initialize from current host memory */ \
+    CHECKERR(dC = clCreateBuffer(tp->ctx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, szC, hC, &err)); \
+    cl_uint kcount = 0;                                                    \
     double basetime = 0., dt = 0., mindt = 0.; \
+    /* first two iterations are for warmup & baseline */ \
     for (n = -2; n < niterations; n++) { \
 	if (n == -2) { \
 	    if (count == 0) { \
@@ -97,53 +100,71 @@ void NAME##N##x##W##_##R(NAME##N##x##W##_ctr_t ctr, NAME##N##x##W##_ukey_t ukey,
 		    printline_##NAME##N##x##W##_##R(ukey, ctr, &kactr, 1); \
 		    printf("    but got\n"); \
 		    printline_##NAME##N##x##W##_##R(ukey, ctr, hC, 1); \
-                    if(!debug) exit(1); \
-                    else break; \
+		    if(!debug) exit(1);                                 \
+                    else break;                                         \
 		} else { \
 		    dprintf(("%s matched word %d\n", kernelname, xj)); \
 		} \
 	    } \
 	    basetime = dt; \
 	    if (debug||verbose) { \
-		dprintf(("%s %.3f secs for %lu workitems test on device %d (%s)\n", \
+		dprintf(("%s %.3f secs for %lu workitems test on device %s\n", \
 		       kernelname, basetime, (unsigned long) nworkitems, \
-		       tp->devnum, tp->dev.name)); \
+		       tp->devname)); \
 		printline_##NAME##N##x##W##_##R(ukey, ctr, hC, (verbose < 2) ? 1 : nworkitems); \
 	    } \
 	    kcount = count + 1; \
 	} \
-	dprintf(("launch %s\n", kernelname)); \
 	(void)timer(&cur_time); \
-	hipLaunchKernelGGL(test_##NAME##N##x##W##_##R, dim3(tp->blocks_per_grid), dim3(tp->threads_per_block), 0, 0, kcount, ctr, ukey, dC); \
+	dprintf(("setup arguments to kernel function %s\n", kernelname)); \
+	narg = 0; \
+	CHECK(clSetKernelArg(kern, narg, sizeof(kcount), (void *)&kcount)); \
+	narg++; \
+	CHECK(clSetKernelArg(kern, narg, sizeof(ctr), (void *)&ctr)); \
+	narg++; \
+	CHECK(clSetKernelArg(kern, narg, sizeof(ukey), (void *)&ukey)); \
+	narg++; \
+	CHECK(clSetKernelArg(kern, narg, sizeof(cl_mem), (void *)&dC)); \
+	dprintf(("queue kernel for execution on device %s\n", tp->devname)); \
+	CHECK(clEnqueueNDRangeKernel(tp->cmdq, kern, 1, 0, &nworkitems, &tp->wgsize, 0, 0, 0)); \
+	CHECK(clFlush(tp->cmdq)); \
+	dprintf(("copy results from device memory to host memory\n")); \
+	CHECK(clEnqueueReadBuffer(tp->cmdq, dC, CL_FALSE, 0, szC, hC, 0, 0, 0)); \
+	CHECK(clFlush(tp->cmdq)); \
 	dprintf(("synchronize\n")); \
-	CHECKCALL(hipDeviceSynchronize()); \
-	dprintf(("copy results back from device to host\n")); \
-	CHECKCALL(hipMemcpy(hC, dC, szC, hipMemcpyDeviceToHost)); \
+	CHECK(clFinish(tp->cmdq)); \
 	dt = timer(&cur_time); \
 	dprintf(("iteration %d took %.3f secs\n", n, dt)); \
 	ALLZEROS(hC, nworkitems, N); \
 	if (n == 0 || dt < mindt) mindt = dt; \
     } \
     if (count > 1) { \
-	double tpB = (mindt - basetime) / ( (kcount - 1.) * nworkitems * (N * W / 8.) ); \
-	printf("%-17s %#5.3g cpB, %#5.3g GB/s on dev %d %u B granularity (best %u in %.3f s - %.6f s)\n", \
+	double tpB = (mindt - basetime) / ( (count - 1.) * nworkitems * (N * W / 8.) ); \
+	printf("%-17s %#5.3g cpB, %#5.3g GB/s %u B granularity (best %u in %.3f s - %.6f s)\n", \
 	       kernelname + sizeof(PREFIX) - 1, \
 	       tpB * tp->cycles , 1e-9/tpB, \
-	       tp->devnum, (unsigned)(N*W/8), kcount, mindt, basetime ); \
+	       (unsigned)(N*W/8), count, mindt, basetime ); \
 	fflush(stdout); \
     } \
     /* free host and device memory */ \
     free(hC); \
-    CHECKCALL(hipFree(dC)); \
+    CHECK(clReleaseMemObject(dC)); \
+    /* free the kernel */ \
+    CHECK(clReleaseKernel(kern)); \
 }
 
 #include "util_expandtpl.h"
 
+/* Include the preprocessed source code, stashed in a literal string */
+const char *opencl_src = 
+#include "time_opencl_kernel.i"
+     ;
+
 int main(int argc, char **argv)
 {
-    char *cp;
+    const char *cp;
     unsigned count = 0;
-    CUDAInfo *infop;
+    UCLInfo *infop;
     int keyctroffset = 0;
     
     progname = argv[0];
@@ -153,24 +174,27 @@ int main(int argc, char **argv)
     }
     if (argc  > 1)
 	count = atoi(argv[1]);
-    if ((cp = getenv("TIME_CUDA_VERBOSE")) != NULL) {
+    if ((cp = getenv("TIME_OPENCL_VERBOSE")) != NULL) {
 	verbose = atoi(cp);
     }
-    if ((cp = getenv("TIME_CUDA_DEBUG")) != NULL) {
+    if ((cp = getenv("TIME_OPENCL_DEBUG")) != NULL) {
 	debug = atoi(cp);
     }
-    if ((cp = getenv("TIME_CUDA_OFFSET")) != NULL) {
+    if ((cp = getenv("TIME_OPENCL_OFFSET")) != NULL) {
 	keyctroffset = atoi(cp);
     }
-    if ((cp = getenv("TIME_CUDA_NUMTRIALS")) != NULL) {
+    if ((cp = getenv("TIME_OPENCL_NUMTRIALS")) != NULL) {
         numtrials = atoi(cp);
     }
-    if ((cp = getenv("TIME_CUDA_SEC_PER_TRIAL")) != NULL) {
+    if ((cp = getenv("TIME_OPENCL_SEC_PER_TRIAL")) != NULL) {
         sec_per_trial = atof(cp);
     }
-    infop = cuda_init(argc > 2 ? argv[2] : NULL);
+    if ((cp = getenv("TIME_OPENCL_BUILD_OPTIONS")) == NULL) {
+	cp = "";
+    }
+    infop = opencl_init(argc > 2 ? argv[2] : NULL, opencl_src, cp);
     /* define macro to initialize and call the kernels */
 #   include "time_initkeyctr.h"
-    cuda_done(infop);
+    opencl_done(infop);
     return 0;
 }

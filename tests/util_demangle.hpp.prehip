@@ -1,4 +1,3 @@
-#include "hip/hip_runtime.h"
 /*
 Copyright 2010-2011, D. E. Shaw Research.
 All rights reserved.
@@ -30,34 +29,47 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#include "util_cuda.h"
-#include "kat_main.h"
+#ifndef demangle_dot_hpp_
+#include <string>
 
-#define KAT_KERNEL __global__
-#define KAT_GLOBAL
-#include "kat_dev_execute.h"
+// Every compiler has a demangling library *somewhere*.  Unfortunately, they're
+// all different...
 
-void host_execute_tests(kat_instance *tests_host, unsigned ntests){
-    CUDAInfo *infop;
-    kat_instance *tests_dev;
-    size_t tests_sz;
+#ifdef __GNUC__
+ // Clang defines __GNUC__, but clang3.1 with -stdlib=libc++ can't
+ // find a <cxxabi.h> even though it *can* find the symbols at link
+ // time.  I suspect this is a bug/oversight in the installation
+ // process (which, in June 2012 is still pretty fluid for libc++), so
+ // it might be fixed in the future.  On the other hand, the API in
+ // cxxabi.h is locked down pretty tightly, so writing out an explicit
+ // extern declaration is pretty safe, and avoids a rats nest of
+ // ifdefs.  It is tempting to use clang's __has_include(<cxxabi.h>),
+ // but it feels like more #ifdefs with no obvious upside.
+ //
+ // #include <cxxabi.h>
+extern "C"{
+  char*
+  __cxa_demangle(const char* __mangled_name, char* __output_buffer,
+		 size_t* __length, int* __status);
+}
+#endif
+#include <typeinfo>
 
-    infop = cuda_init(NULL);
-
-    tests_sz = sizeof(tests_host[0]) * (ntests+1); // +1 for sentinel test with method==last
-    CHECKCALL(hipMalloc(&tests_dev, tests_sz));
-    CHECKCALL(hipMemcpy(tests_dev, tests_host, tests_sz, hipMemcpyHostToDevice));
-
-    printf("starting %u tests on 1 blocks with 1 threads/block\n", ntests);
-    fflush(stdout);
-
-    // TO DO:  call this with parallelism, <<<infop->blocks_per_grid, infop->threads_per_block>>>
-    // and then insure that each of the threads got the same result.
-    hipLaunchKernelGGL(dev_execute_tests, dim3(1), dim3(1), 0, 0, tests_dev);
-
-    CHECKCALL(hipDeviceSynchronize());
-    CHECKCALL(hipMemcpy(tests_host, tests_dev, tests_sz, hipMemcpyDeviceToHost));
-    CHECKCALL(hipFree(tests_dev));
-    cuda_done(infop);
+template <typename T>
+std::string demangle(const T& ignored){
+#ifdef __GNUC__
+    int status;
+    char *realname = __cxa_demangle(typeid(ignored).name(), 0, 0, &status);
+    std::string ret;
+    if(status!=0 || realname==0)
+        ret = typeid(ignored).name();
+    else
+        ret = realname;
+    free(realname);
+    return ret;
+#else
+    return typeid(ignored).name();
+#endif
 }
 
+#endif

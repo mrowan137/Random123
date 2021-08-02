@@ -1,4 +1,3 @@
-#include "hip/hip_runtime.h"
 // Test for boxmuller.h on CUDA
 #include <Random123/philox.h>
 #include <Random123/threefry.h>
@@ -106,14 +105,14 @@ void timedcall(const char *tname, const char *out_fname, CUDAInfo *infop, typena
     const size_t out_size = nrand*sizeof(F);
     F *d_out, *h_out = (F *) malloc(out_size);
     CHECKNOTZERO(h_out);
-    CHECKCALL(hipMalloc(&d_out, out_size));
+    CHECKCALL(cudaMalloc(&d_out, out_size));
     (void) timer(&cur_time);
     if (out_fname)
-	hipLaunchKernelGGL(HIP_KERNEL_NAME(dumploop<CBRNG,F,F2>), dim3(infop->blocks_per_grid), dim3(infop->threads_per_block), 0, 0, d_out, k, N);
+	dumploop<CBRNG,F,F2> <<<infop->blocks_per_grid, infop->threads_per_block>>> (d_out, k, N);
     else
-	hipLaunchKernelGGL(HIP_KERNEL_NAME(timedloop<CBRNG,F,F2>), dim3(infop->blocks_per_grid), dim3(infop->threads_per_block), 0, 0, d_out, k, N);
-    CHECKCALL(hipDeviceSynchronize());
-    CHECKCALL(hipMemcpy(h_out, d_out, out_size, hipMemcpyDeviceToHost));
+	timedloop<CBRNG,F,F2> <<<infop->blocks_per_grid, infop->threads_per_block>>> (d_out, k, N);
+    CHECKCALL(cudaDeviceSynchronize());
+    CHECKCALL(cudaMemcpy(h_out, d_out, out_size, cudaMemcpyDeviceToHost));
     dt = timer(&cur_time);
     printf("%s %zd in %g sec: %gM/sec\n", tname, N*nthreads, dt, N*nthreads*1.e-6/dt);
     if (out_fname) {
@@ -141,7 +140,7 @@ void timedcall(const char *tname, const char *out_fname, CUDAInfo *infop, typena
 	    printf("Woops %s %d times\n", tname, nwoops);
 	}
     }
-    CHECKCALL(hipFree(d_out));
+    CHECKCALL(cudaFree(d_out));
     free(h_out);
 }
 

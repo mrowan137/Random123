@@ -1,4 +1,3 @@
-#include "hip/hip_runtime.h"
 /*
 Copyright 2010-2011, D. E. Shaw Research.
 All rights reserved.
@@ -30,34 +29,31 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-#include "util_cuda.h"
-#include "kat_main.h"
+#include <Random123/threefry.h>
+#include <stdio.h>
+#include "example_seeds.h"
 
-#define KAT_KERNEL __global__
-#define KAT_GLOBAL
-#include "kat_dev_execute.h"
-
-void host_execute_tests(kat_instance *tests_host, unsigned ntests){
-    CUDAInfo *infop;
-    kat_instance *tests_dev;
-    size_t tests_sz;
-
-    infop = cuda_init(NULL);
-
-    tests_sz = sizeof(tests_host[0]) * (ntests+1); // +1 for sentinel test with method==last
-    CHECKCALL(hipMalloc(&tests_dev, tests_sz));
-    CHECKCALL(hipMemcpy(tests_dev, tests_host, tests_sz, hipMemcpyHostToDevice));
-
-    printf("starting %u tests on 1 blocks with 1 threads/block\n", ntests);
-    fflush(stdout);
-
-    // TO DO:  call this with parallelism, <<<infop->blocks_per_grid, infop->threads_per_block>>>
-    // and then insure that each of the threads got the same result.
-    hipLaunchKernelGGL(dev_execute_tests, dim3(1), dim3(1), 0, 0, tests_dev);
-
-    CHECKCALL(hipDeviceSynchronize());
-    CHECKCALL(hipMemcpy(tests_host, tests_dev, tests_sz, hipMemcpyDeviceToHost));
-    CHECKCALL(hipFree(tests_dev));
-    cuda_done(infop);
+int main(int argc, char **argv){
+    int i;
+    uint32_t seed = example_seed_u32(EXAMPLE_SEED1_U32); // example of user-settable seed
+    
+    /* while this example starts the counter from 0 and then increments by 0,
+       this could start anywhere and increment by any stride or pattern that
+       makes sense for the application as long as it produces a non-repeating stream */
+    threefry4x32_ctr_t  ctr = {{0,0,0,0}};
+    /* we illustrate one user-specified seed and one constant as the key */
+    threefry4x32_key_t key = {{seed, EXAMPLE_SEED2_U32,0,0}};
+    (void)argc; (void)argv; /* unused */
+    printf( "The first few randoms with key 0x%llx 0x%llx\n",
+	   (unsigned long long)key.v[0], (unsigned long long)key.v[1]);
+    for(i=0; i<10; ++i){
+        ctr.v[0] = i;
+	{
+          threefry4x32_ctr_t rand = threefry4x32(ctr, key);
+          printf("ctr: %llx %llx threefry4x32(20, ctr, key): %llx %llx\n",
+                 (unsigned long long)ctr.v[0], (unsigned long long)ctr.v[1],
+                 (unsigned long long)rand.v[0], (unsigned long long)rand.v[1]);
+	}
+    }
+    return 0;
 }
-

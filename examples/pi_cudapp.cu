@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
 Copyright 2010-2011, D. E. Shaw Research.
 All rights reserved.
@@ -100,18 +101,18 @@ main(int argc, char **argv)
 	count = NTRIES/nthreads;
 
     hits_sz = nthreads * sizeof(hits_host[0]);
-    CHECKCALL(cudaMalloc(&hits_dev, hits_sz));
+    CHECKCALL(hipMalloc(&hits_dev, hits_sz));
     CHECKNOTZERO((hits_host = (uint2 *)malloc(hits_sz)));
 
     printf("starting %u blocks with %u threads/block for %u points each with seed 0x%x\n",
 	   infop->blocks_per_grid, infop->threads_per_block, count, seed);
     fflush(stdout);
 
-    counthits<<<infop->blocks_per_grid, infop->threads_per_block>>>(count, seed, hits_dev);
+    hipLaunchKernelGGL(counthits, dim3(infop->blocks_per_grid), dim3(infop->threads_per_block), 0, 0, count, seed, hits_dev);
 
-    CHECKCALL(cudaDeviceSynchronize());
-    CHECKCALL(cudaMemcpy(hits_host, hits_dev, nthreads*sizeof(hits_dev[0]),
-		   cudaMemcpyDeviceToHost));
+    CHECKCALL(hipDeviceSynchronize());
+    CHECKCALL(hipMemcpy(hits_host, hits_dev, nthreads*sizeof(hits_dev[0]),
+		   hipMemcpyDeviceToHost));
 
     unsigned long hits = 0, tries = 0;
     for (unsigned i = 0; i < nthreads; i++) {
@@ -120,7 +121,7 @@ main(int argc, char **argv)
 	hits += hits_host[i].x;
 	tries += hits_host[i].y;
     }
-    CHECKCALL(cudaFree(hits_dev));
+    CHECKCALL(hipFree(hits_dev));
     free(hits_host);
     cuda_done(infop);
     return pi_check(hits, tries);

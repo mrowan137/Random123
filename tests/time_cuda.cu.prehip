@@ -1,4 +1,3 @@
-#include "hip/hip_runtime.h"
 /*
 Copyright 2010-2011, D. E. Shaw Research.
 All rights reserved.
@@ -60,8 +59,8 @@ void NAME##N##x##W##_##R(NAME##N##x##W##_ctr_t ctr, NAME##N##x##W##_ukey_t ukey,
     const size_t szC = nworkitems*sizeof(hC[0]); \
     \
     /* allocate vector of counters in device memory, initialize to zero */ \
-    CHECKCALL(hipMalloc(&dC, szC)); \
-    CHECKCALL(hipMemset((void *)dC, 0, szC)); \
+    CHECKCALL(cudaMalloc(&dC, szC)); \
+    CHECKCALL(cudaMemset((void *)dC, 0, szC)); \
     /* allocate and initialize vector of counters in host memory */ \
     CHECKNOTZERO(hC = (NAME##N##x##W##_ctr_t *)malloc(szC)); \
     for (i = 0; i < nworkitems; i++) { \
@@ -114,11 +113,11 @@ void NAME##N##x##W##_##R(NAME##N##x##W##_ctr_t ctr, NAME##N##x##W##_ukey_t ukey,
 	} \
 	dprintf(("launch %s\n", kernelname)); \
 	(void)timer(&cur_time); \
-	hipLaunchKernelGGL(test_##NAME##N##x##W##_##R, dim3(tp->blocks_per_grid), dim3(tp->threads_per_block), 0, 0, kcount, ctr, ukey, dC); \
+	test_##NAME##N##x##W##_##R<<<tp->blocks_per_grid, tp->threads_per_block>>>(kcount, ctr, ukey, dC); \
 	dprintf(("synchronize\n")); \
-	CHECKCALL(hipDeviceSynchronize()); \
+	CHECKCALL(cudaDeviceSynchronize()); \
 	dprintf(("copy results back from device to host\n")); \
-	CHECKCALL(hipMemcpy(hC, dC, szC, hipMemcpyDeviceToHost)); \
+	CHECKCALL(cudaMemcpy(hC, dC, szC, cudaMemcpyDeviceToHost)); \
 	dt = timer(&cur_time); \
 	dprintf(("iteration %d took %.3f secs\n", n, dt)); \
 	ALLZEROS(hC, nworkitems, N); \
@@ -134,7 +133,7 @@ void NAME##N##x##W##_##R(NAME##N##x##W##_ctr_t ctr, NAME##N##x##W##_ukey_t ukey,
     } \
     /* free host and device memory */ \
     free(hC); \
-    CHECKCALL(hipFree(dC)); \
+    CHECKCALL(cudaFree(dC)); \
 }
 
 #include "util_expandtpl.h"

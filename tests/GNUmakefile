@@ -96,17 +96,17 @@ INC=$(srcdir/)../include
 override CPPFLAGS += -I$(INC)
 
 ifndef NVCC
-NVCC:=nvcc
+NVCC:=hipcc
 endif
 # The rngs are *very* slow without optimization.  In the simplest case,
 # where the user just calls 'make', we don't want them to see terrible
 # performance.  Unfortunately, this might surprise someone
 # who says, e.g., make CPPFLAGS=-O0.  Oh well...
 ifndef CFLAGS
-CFLAGS:=-O
+CFLAGS:=-O3
 endif
 ifndef CXXFLAGS
-CXXFLAGS:=-O
+CXXFLAGS:=-O3
 endif
 
 %.i : %.ocl
