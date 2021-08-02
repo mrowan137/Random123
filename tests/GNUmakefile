@@ -22,7 +22,7 @@ c:=kat_c ut_ars time_serial
 cpp:=kat_cpp ut_carray ut_M128 ut_features ut_ReinterpretCtr ut_Engine ut_aes timers time_boxmuller ut_ua ut_uniform
 gsl:=ut_gsl
 thread:=time_thread
-cuda:=time_cuda kat_cuda time_boxmuller_cuda
+cuda:= kat_cuda # time_cuda kat_cuda time_boxmuller_cuda
 opencl:=time_opencl kat_opencl
 metal:=kat_metal
 
