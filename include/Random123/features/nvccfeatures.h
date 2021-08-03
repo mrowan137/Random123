@@ -32,11 +32,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef __r123_nvcc_features_dot_h__
 #define __r123_nvcc_features_dot_h__
 
-#if !defined(CUDART_VERSION)
-#error "why are we in nvccfeatures.h if CUDART_VERSION is not defined"
+#if !(defined(CUDART_VERSION) || defined(HIP_INCLUDE_HIP_HIP_RUNTIME_API_H))
+#error "why are we in nvccfeatures.h if neither CUDART_VERSION NOR HIP_PLATFORM?"
 #endif
 
-#if CUDART_VERSION < 4010
+#if CUDART_VERSION < 4010 && !defined(HIP_INCLUDE_HIP_HIP_RUNTIME_API_H)
 #error "CUDA versions earlier than 4.1 produce incorrect results for some templated functions in namespaces.  Random123 isunsupported.  See comments in nvccfeatures.h"
 // This test was added in Random123-1.08 (August, 2013) because we
 // discovered that Ftype(maxTvalue<T>()) with Ftype=double and
@@ -57,7 +57,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //#ifdef  __CUDA_ARCH__ allows Philox32 and Philox64 to be compiled
 //for both device and host functions in CUDA by setting compiler flags
 //for the device function
-#ifdef  __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
 #ifndef R123_CUDA_DEVICE
 #define R123_CUDA_DEVICE __device__
 #endif
@@ -72,10 +72,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #ifndef R123_ASSERT
-#define R123_ASSERT(x) if((x)) ; else asm("trap;")
+#  if defined(__CUDA_ARCH__)
+#    define R123_ASSERT(x) if((x)); else asm("trap;")
+#  elif defined(__HIP_DEVICE_COMPILE__)
+#    define R123_ASSERT(x) if((x)); else asm("s_trap 2;")
+#  endif
 #endif
 
-#else // ! __CUDA_ARCH__
+#else // ! ( defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__) )
 // If we're using nvcc not compiling for the CUDA architecture,
 // then we must be compiling for the host.  In that case,
 // tell the philox code to use the mulhilo64 asm because

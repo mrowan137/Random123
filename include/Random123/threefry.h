@@ -196,9 +196,9 @@ R123_CUDA_DEVICE R123_STATIC_INLINE uint32_t RotL_32(uint32_t x, unsigned int N)
 typedef struct r123array2x##W threefry2x##W##_ctr_t;                          \
 typedef struct r123array2x##W threefry2x##W##_key_t;                          \
 typedef struct r123array2x##W threefry2x##W##_ukey_t;                          \
-R123_CUDA_DEVICE R123_STATIC_INLINE threefry2x##W##_key_t threefry2x##W##keyinit(threefry2x##W##_ukey_t uk) { return uk; } \
-R123_CUDA_DEVICE R123_STATIC_INLINE R123_FORCE_INLINE(threefry2x##W##_ctr_t threefry2x##W##_R(unsigned int Nrounds, threefry2x##W##_ctr_t in, threefry2x##W##_key_t k)); \
-R123_CUDA_DEVICE R123_STATIC_INLINE                                          \
+__host__ __device__ R123_STATIC_INLINE threefry2x##W##_key_t threefry2x##W##keyinit(threefry2x##W##_ukey_t uk) { return uk; } \
+__host__ __device__ R123_STATIC_INLINE R123_FORCE_INLINE(threefry2x##W##_ctr_t threefry2x##W##_R(unsigned int Nrounds, threefry2x##W##_ctr_t in, threefry2x##W##_key_t k)); \
+__host__ __device__ R123_STATIC_INLINE                                          \
 threefry2x##W##_ctr_t threefry2x##W##_R(unsigned int Nrounds, threefry2x##W##_ctr_t in, threefry2x##W##_key_t k){ \
     threefry2x##W##_ctr_t X;                                              \
     uint##W##_t ks[2+1];                                          \
@@ -302,9 +302,9 @@ threefry2x##W##_ctr_t threefry2x##W(threefry2x##W##_ctr_t in, threefry2x##W##_ke
 typedef struct r123array4x##W threefry4x##W##_ctr_t;                        \
 typedef struct r123array4x##W threefry4x##W##_key_t;                        \
 typedef struct r123array4x##W threefry4x##W##_ukey_t;                        \
-R123_CUDA_DEVICE R123_STATIC_INLINE threefry4x##W##_key_t threefry4x##W##keyinit(threefry4x##W##_ukey_t uk) { return uk; } \
-R123_CUDA_DEVICE R123_STATIC_INLINE R123_FORCE_INLINE(threefry4x##W##_ctr_t threefry4x##W##_R(unsigned int Nrounds, threefry4x##W##_ctr_t in, threefry4x##W##_key_t k)); \
-R123_CUDA_DEVICE R123_STATIC_INLINE                                          \
+__host__ __device__ R123_STATIC_INLINE threefry4x##W##_key_t threefry4x##W##keyinit(threefry4x##W##_ukey_t uk) { return uk; } \
+__host__ __device__ R123_STATIC_INLINE R123_FORCE_INLINE(threefry4x##W##_ctr_t threefry4x##W##_R(unsigned int Nrounds, threefry4x##W##_ctr_t in, threefry4x##W##_key_t k)); \
+__host__ __device__ R123_STATIC_INLINE                                          \
 threefry4x##W##_ctr_t threefry4x##W##_R(unsigned int Nrounds, threefry4x##W##_ctr_t in, threefry4x##W##_key_t k){ \
     threefry4x##W##_ctr_t X;                                            \
     uint##W##_t ks[4+1];                                            \
