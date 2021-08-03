@@ -119,7 +119,7 @@ static CUDAInfo *cuda_init(const char *devstr)
     }
     tp->blocks_per_grid = tp->cores; /* seems like a good guess */
     tp->threads_per_block = tp->dev.warpSize * 2;
-    printf("Using CUDA device %d, %d cores, %g cycles, will try %d blocks/grid %d threads/block\n",
+    printf("Using GPU device %d, %d cores, %g cycles, will try %d blocks/grid %d threads/block\n",
 	   tp->devnum, tp->cores, tp->cycles, tp->blocks_per_grid, tp->threads_per_block);
     CHECKCALL(hipSetDevice(tp->devnum));
     dprintf(("cuda_init done\n"));
