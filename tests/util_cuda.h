@@ -67,6 +67,9 @@ static CUDAInfo *cuda_init(const char *devstr)
 	// CUDA SDK $CUDA_SAMPLES_DIR/common/inc/helper_cuda.h
 	// or https://github.com/NVIDIA/nvidia-docker/blob/master/tools/src/cuda/cuda.go
 	cores = cu.multiProcessorCount;
+
+#if defined(CUDART_VERSION) || defined(__HIP_PLATFORM_NVIDIA__)
+    // Nvidia hardware
 	if (cu.major == 1 && cu.minor >= 0 && cu.minor <= 3) {
 	    // 1.0 (G80, G92, aka GTX880, Tesla [CSD]870) to 1.3 (GT200, aka GTX280, Tesla [CS]10xx) have 8 cores per MP
 	    cores *= 8;
@@ -91,7 +94,15 @@ static CUDAInfo *cuda_init(const char *devstr)
 	} else if (cu.major == 7) {
 	    // 7.[025] (Volta and Turing RTX 20[678]0, Titan RTX, Quadro RTX)
 	    cores *= 128;
-	} else {
+	}
+#elif defined(__HIP_PLATFORM_AMD__)
+    // AMD hardware
+    if (cu.major == 9) {
+        // 9.0 (gfx908 aka MI100)
+        cores *= 128;
+    }
+#endif
+    else {
 	    int coremultguess = 384;
 	    cores *= coremultguess;
 	    fprintf(stderr, "WARNING: Unknown number of cores per MP for this device: assuming %d, so cpb calculation will be wrong and choice of blocks/grid might be suboptimal\n", coremultguess);
