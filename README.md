@@ -1,2 +1,2 @@
 # Random123
-HIPification of Random123 library; see `hip` branch.
+HIPification of [Random123 library](https://github.com/DEShawResearch/random123); see `HIP` branch.
