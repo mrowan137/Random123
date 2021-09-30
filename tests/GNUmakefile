@@ -11,7 +11,7 @@ no_target_specified: runcore
 .PHONY: no_target_specified
 
 # metatargets are variables which get mapped by METATARGET_template
-meta_targets:=kat core aesni timing c cpp gsl thread cuda opencl metal ut
+meta_targets:=kat core aesni timing c cpp gsl thread hip opencl metal ut
 
 # Platform metatargets: each one typically has specific requirements in the build environment.
 # c is C99 (will work in MSVC), cpp is C++98, gsl requires the GNU Scientific Library
@@ -22,7 +22,7 @@ c:=kat_c ut_ars time_serial
 cpp:=kat_cpp ut_carray ut_M128 ut_features ut_ReinterpretCtr ut_Engine ut_aes timers time_boxmuller ut_ua ut_uniform
 gsl:=ut_gsl
 thread:=time_thread
-cuda:= kat_cuda # time_cuda kat_cuda time_boxmuller_cuda
+hip:= kat_cuda time_cuda #time_boxmuller_cuda
 opencl:=time_opencl kat_opencl
 metal:=kat_metal
 
